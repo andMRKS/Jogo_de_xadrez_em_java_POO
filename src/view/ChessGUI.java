@@ -18,11 +18,11 @@ public class ChessGUI extends JFrame {
     private static final long serialVersionUID = 1L; // evita warning de serialização
 
     // --- Config de cores/styles ---
-    private static final Color LIGHT_SQ = new Color(238, 242, 246); // light square (cool gray)
-    private static final Color DARK_SQ  = new Color(186, 193, 201); // dark square (cool gray)
-    private static final Color HILITE_SELECTED = new Color(72, 118, 204);  // modern blue
-    private static final Color HILITE_LEGAL    = new Color(76, 175, 80);   // modern green
-    private static final Color HILITE_LASTMOVE = new Color(255, 193, 7);   // amber
+    private static final Color LIGHT_SQ = new Color(234, 235, 209); // Um branco "envelhecido"
+    private static final Color DARK_SQ  = new Color(111, 143, 114); // Verde escuro, cor de feltro
+    private static final Color HILITE_SELECTED = new Color(255, 217, 25);  // Destaque em amarelo-ouro
+    private static final Color HILITE_LEGAL    = new Color(60, 143, 70, 150);   // Verde mais vivo com transparência
+    private static final Color HILITE_LASTMOVE = new Color(201, 179, 131, 175);   // Destaque amadeirado com transparência
 
     private static final Border BORDER_SELECTED = new MatteBorder(2,2,2,2, HILITE_SELECTED);
     private static final Border BORDER_LEGAL    = new MatteBorder(2,2,2,2, HILITE_LEGAL);
@@ -55,6 +55,29 @@ public class ChessGUI extends JFrame {
 
     public ChessGUI() {
         super("ChessGame");
+
+        Color darkBg = new Color(45, 45, 45);
+        Color midBg = new Color(60, 60, 60);
+        Color lightText = new Color(220, 220, 220);
+
+        UIManager.put("control", midBg);
+        UIManager.put("text", lightText);
+        UIManager.put("nimbusBase", new Color(30, 30, 30));
+        UIManager.put("nimbusFocus", HILITE_SELECTED); // Reutiliza a cor de destaque
+        UIManager.put("nimbusLightBackground", midBg);
+        UIManager.put("nimbusSelectionBackground", HILITE_SELECTED);
+        UIManager.put("Panel.background", darkBg);
+        UIManager.put("TextArea.background", midBg);
+        UIManager.put("TextArea.foreground", lightText);
+        UIManager.put("TextArea.caretForeground", lightText);
+        UIManager.put("Label.foreground", lightText);
+        UIManager.put("Button.background", midBg);
+        UIManager.put("Button.foreground", lightText);
+        UIManager.put("MenuBar.background", darkBg);
+        UIManager.put("Menu.foreground", lightText);
+        UIManager.put("MenuItem.foreground", lightText);
+        UIManager.put("CheckBoxMenuItem.foreground", lightText);
+        UIManager.put("JSpinner.background", midBg);
 
         // Look&Feel Nimbus
         try {
