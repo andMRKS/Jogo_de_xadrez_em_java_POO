@@ -39,6 +39,7 @@ public class ChessGUI extends JFrame {
 
     // Menu / controles
     private JCheckBoxMenuItem pcAsBlack;
+    private JCheckBoxMenuItem pcVsPcItem; // Novo item de menu
     private JSpinner depthSpinner;
     private JMenuItem newGameItem, quitItem;
 
@@ -95,9 +96,9 @@ public class ChessGUI extends JFrame {
             UIManager.put("Spinner.font", uiFont);
             UIManager.put("ToolTip.font", new Font("Segoe UI", Font.PLAIN, 13));
             UIManager.put("TextArea.font", new Font("Segoe UI", Font.PLAIN, 13));
-            
+
             SwingUtilities.updateComponentTreeUI(this);
-} catch (Exception ignored) {}
+        } catch (Exception ignored) {}
 
         this.game = new Game();
 
@@ -176,10 +177,8 @@ public class ChessGUI extends JFrame {
 
     private JMenuBar buildMenuBar() {
         JMenuBar mb = new JMenuBar();
-
-        
         mb.setBorder(BorderFactory.createEmptyBorder(6,6,6,6));
-JMenu gameMenu = new JMenu("Jogo");
+        JMenu gameMenu = new JMenu("Jogo");
 
         newGameItem = new JMenuItem("Novo Jogo");
         newGameItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
@@ -187,6 +186,27 @@ JMenu gameMenu = new JMenu("Jogo");
 
         pcAsBlack = new JCheckBoxMenuItem("PC joga com as Pretas");
         pcAsBlack.setSelected(false);
+        pcAsBlack.addActionListener(e -> {
+            if (pcAsBlack.isSelected()) {
+                pcVsPcItem.setSelected(false);
+                pcVsPcItem.setEnabled(false);
+                maybeTriggerAI();
+            } else {
+                pcVsPcItem.setEnabled(true);
+            }
+        });
+
+        pcVsPcItem = new JCheckBoxMenuItem("PC vs PC");
+        pcVsPcItem.setSelected(false);
+        pcVsPcItem.addActionListener(e -> {
+            if (pcVsPcItem.isSelected()) {
+                pcAsBlack.setSelected(false);
+                pcAsBlack.setEnabled(false);
+                maybeTriggerAI();
+            } else {
+                pcAsBlack.setEnabled(true);
+            }
+        });
 
         JMenu depthMenu = new JMenu("Profundidade IA");
         depthSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 4, 1));
@@ -200,6 +220,7 @@ JMenu gameMenu = new JMenu("Jogo");
         gameMenu.add(newGameItem);
         gameMenu.addSeparator();
         gameMenu.add(pcAsBlack);
+        gameMenu.add(pcVsPcItem);
         gameMenu.add(depthMenu);
         gameMenu.addSeparator();
         gameMenu.add(quitItem);
@@ -220,7 +241,6 @@ JMenu gameMenu = new JMenu("Jogo");
         panel.add(cb);
 
         panel.add(new JLabel("Prof. IA:"));
-        // >>> Fix da ambiguidade: força o construtor (int,int,int,int)
         int curDepth = ((Integer) depthSpinner.getValue()).intValue();
         JSpinner sp = new JSpinner(new SpinnerNumberModel(curDepth, 1, 4, 1));
         sp.addChangeListener(e -> depthSpinner.setValue(sp.getValue()));
@@ -258,7 +278,7 @@ JMenu gameMenu = new JMenu("Jogo");
     // ----------------- Interação de tabuleiro -----------------
 
     private void handleClick(Position clicked) {
-        if (game.isGameOver() || aiThinking) return;
+        if (game.isGameOver() || aiThinking || pcVsPcItem.isSelected()) return;
 
         // Se for vez do PC (pretas) e modo PC ativado, ignore cliques
         if (pcAsBlack.isSelected() && !game.whiteToMove()) return;
@@ -329,19 +349,24 @@ JMenu gameMenu = new JMenu("Jogo");
 
     private void maybeTriggerAI() {
         if (game.isGameOver()) return;
-        if (!pcAsBlack.isSelected()) return;
-        if (game.whiteToMove()) return; // PC joga de pretas
+
+        boolean isAITurn = pcVsPcItem.isSelected() || (pcAsBlack.isSelected() && !game.whiteToMove());
+        if (!isAITurn) return;
 
         aiThinking = true;
-        status.setText("Vez: Pretas — PC pensando...");
+        String player = game.whiteToMove() ? "Brancas" : "Pretas";
+        status.setText("Vez: " + player + " — PC pensando...");
         final int depth = (Integer) depthSpinner.getValue();
 
-        new SwingWorker<Void, Void>() {
-            Position aiFrom, aiTo;
+        new SwingWorker<Move, Void>() {
             @Override
-            protected Void doInBackground() {
-                // Heurística simples: escolher melhor captura disponível; senão, um lance aleatório "ok".
-                var allMoves = collectAllLegalMovesForSide(false); // pretas
+            protected Move doInBackground() throws Exception {
+                // Pausa para visualização no modo PC vs PC
+                if (pcVsPcItem.isSelected()) {
+                    Thread.sleep(500);
+                }
+
+                var allMoves = collectAllLegalMovesForSide(game.whiteToMove());
                 if (allMoves.isEmpty()) return null;
 
                 int bestScore = Integer.MIN_VALUE;
@@ -352,10 +377,11 @@ JMenu gameMenu = new JMenu("Jogo");
 
                     Piece target = game.board().get(mv.to);
                     if (target != null) {
-                        score += pieceValue(target); // capturas valem
+                        score += pieceValue(target);
                     }
                     score += centerBonus(mv.to);
                     score += (depth - 1) * 2;
+                    score += rnd.nextInt(5); // Um pouco de aleatoriedade
 
                     if (score > bestScore) {
                         bestScore = score;
@@ -365,29 +391,31 @@ JMenu gameMenu = new JMenu("Jogo");
                         bestList.add(mv);
                     }
                 }
-                Move chosen = bestList.get(rnd.nextInt(bestList.size()));
-                aiFrom = chosen.from;
-                aiTo   = chosen.to;
-                return null;
+                return bestList.get(rnd.nextInt(bestList.size()));
             }
 
             @Override
             protected void done() {
-                try { get(); } catch (Exception ignored) {}
-
-                if (aiFrom != null && aiTo != null && !game.isGameOver() && !game.whiteToMove()) {
-                    lastFrom = aiFrom;
-                    lastTo   = aiTo;
-                    Character promo = null;
-                    Piece moving = game.board().get(aiFrom);
-                    if (moving instanceof Pawn && game.isPromotion(aiFrom, aiTo)) {
-                        promo = 'Q';
+                try {
+                    Move chosen = get();
+                    if (chosen != null && !game.isGameOver()) {
+                        lastFrom = chosen.from;
+                        lastTo   = chosen.to;
+                        Character promo = null;
+                        Piece moving = game.board().get(lastFrom);
+                        if (moving instanceof Pawn && game.isPromotion(lastFrom, lastTo)) {
+                            promo = 'Q';
+                        }
+                        game.move(lastFrom, lastTo, promo);
                     }
-                    game.move(aiFrom, aiTo, promo);
-                }
+                } catch (Exception ignored) {}
+
                 aiThinking = false;
                 refresh();
                 maybeAnnounceEnd();
+
+                // Dispara o próximo turno da IA
+                maybeTriggerAI();
             }
         }.execute();
     }
@@ -399,7 +427,9 @@ JMenu gameMenu = new JMenu("Jogo");
 
     private List<Move> collectAllLegalMovesForSide(boolean whiteSide) {
         List<Move> moves = new ArrayList<>();
-        if (whiteSide != game.whiteToMove()) return moves;
+        // Correção: A IA deve poder calcular jogadas mesmo que não seja seu turno
+        // Isso é importante para a heurística, mas aqui só queremos os movimentos legais
+        // A checagem de turno já foi feita em maybeTriggerAI
 
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
@@ -417,15 +447,14 @@ JMenu gameMenu = new JMenu("Jogo");
 
     private int pieceValue(Piece p) {
         if (p == null) return 0;
-        switch (p.getSymbol()) {
-            case "P": return 100;
-            case "N":
-            case "B": return 300;
-            case "R": return 500;
-            case "Q": return 900;
-            case "K": return 20000;
-        }
-        return 0;
+        return switch (p.getSymbol()) {
+            case "P" -> 100;
+            case "N", "B" -> 300;
+            case "R" -> 500;
+            case "Q" -> 900;
+            case "K" -> 20000;
+            default -> 0;
+        };
     }
 
     private int centerBonus(Position pos) {
@@ -490,7 +519,9 @@ JMenu gameMenu = new JMenu("Jogo");
         // 5) Status e histórico
         String side = game.whiteToMove() ? "Brancas" : "Pretas";
         String chk = game.inCheck(game.whiteToMove()) ? " — Xeque!" : "";
-        if (aiThinking) chk = " — PC pensando...";
+        if (aiThinking) {
+            chk = " — PC pensando...";
+        }
         status.setText("Vez: " + side + chk);
 
         StringBuilder sb = new StringBuilder();
@@ -508,7 +539,7 @@ JMenu gameMenu = new JMenu("Jogo");
         if (!game.isGameOver()) return;
         String msg;
         if (game.inCheck(game.whiteToMove())) {
-            msg = "Xeque-mate! " + (game.whiteToMove() ? "Brancas" : "Pretas") + " estão em mate.";
+            msg = "Xeque-mate! " + (game.whiteToMove() ? "Pretas" : "Brancas") + " vencem.";
         } else {
             msg = "Empate por afogamento (stalemate).";
         }
