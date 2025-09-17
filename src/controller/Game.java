@@ -410,7 +410,7 @@ public class Game {
 
     // Executes a move on this.board without doing legality checks or specials.
     // Used only inside snapshots where the move was already validated.
-    private void forceMoveNoChecks(Position from, Position to) {
+    public void forceMoveNoChecks(Position from, Position to) {
         Piece p = board.get(from);
         if (p == null) return;
 
@@ -475,7 +475,7 @@ public class Game {
     }
 
     // --------- Snapshot ----------
-    private Game snapshotShallow() {
+    public Game snapshotShallow() {
         Game g = new Game(true);
         g.board = this.board.copy(); // IMPORTANT: Board.copy() must deep-copy pieces and fix their board refs.
         g.whiteToMove = this.whiteToMove;
